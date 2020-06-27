@@ -7,6 +7,11 @@
 let app = require('../app');
 let debug = require('debug')('chat-server:server');
 let http = require('http');
+const {addUser, removeUser, getUser, getUsersInRoom} = require ('../controllers/usersController/usersController');
+
+
+//io module
+let socketio = require('socket.io');
 
 /**
  * Get port from environment and store in Express.
@@ -20,6 +25,43 @@ app.set('port', port);
  */
 
 let server = http.createServer(app);
+
+//io set-up
+
+const io = socketio(server);
+
+
+io.on('connection', (socket) => {
+  console.log('we have a new connection !');
+
+
+  socket.on('join', ({name, room }, callback) => {
+    const {error , user } = addUser({id: socket.id , name, room});
+
+    if( error ) return callback( error );
+
+    socket.emit('message', { user : 'admin' , text: `${user.name} , welcome to the room ${user.room}`});
+    socket.broadcast.to(user.room).emit('message', { user : 'admin', text: `${user.name} , has joined the room!`});
+
+    socket.join(user.room);
+    callback();
+  });
+
+  socket.on('sendMessage', (message, callback) => {
+    const user = getUser(socket.id);
+
+    io.to(user.room).emit('message', {user : user.name, text: message});
+    callback();
+  });
+  socket.on('disconnect', () =>{
+    const user = removeUser(socket.id);
+
+    if (user) {
+      io.to(user.room). emit('message', {user:'admin', text: `${user.name} has left !`})
+    }
+  })
+});
+
 
 /**
  * Listen on provided port, on all network interfaces.
