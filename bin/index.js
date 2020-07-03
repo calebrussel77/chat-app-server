@@ -7,6 +7,7 @@
 let app = require('../app');
 let debug = require('debug')('chat-server:server');
 let http = require('http');
+const cors = require('cors');
 const {addUser, removeUser, getUser, getUsersInRoom} = require ('../controllers/usersController/usersController');
 
 
@@ -19,6 +20,7 @@ let socketio = require('socket.io');
 
 let port = normalizePort(process.env.PORT || '4000');
 app.set('port', port);
+app.use(cors());
 
 /**
  * Create HTTP server.
@@ -32,18 +34,18 @@ const io = socketio(server);
 
 
 io.on('connection', (socket) => {
-  console.log('we have a new connection !');
-
 
   socket.on('join', ({name, room }, callback) => {
     const {error , user } = addUser({id: socket.id , name, room});
 
     if( error ) return callback( error );
 
-    socket.emit('message', { user : 'admin' , text: `${user.name} , welcome to the room ${user.room}`});
-    socket.broadcast.to(user.room).emit('message', { user : 'admin', text: `${user.name} , has joined the room!`});
+    socket.emit('message', { user : 'administrateur' , text: `${user.name} , bienvenu dans le groupe ${user.room}`});
+    socket.broadcast.to(user.room).emit('message', { user : 'admin', text: `${user.name} ,a rejoint le groupe !`});
 
     socket.join(user.room);
+    io.to(user.room).emit('roomData', { room: user.room, users: getUsersInRoom(user.room)});
+
     callback();
   });
 
@@ -57,7 +59,8 @@ io.on('connection', (socket) => {
     const user = removeUser(socket.id);
 
     if (user) {
-      io.to(user.room). emit('message', {user:'admin', text: `${user.name} has left !`})
+      io.to(user.room). emit('message', {user:'administrateur', text: `${user.name} a quitté le groupe !`});
+      io.to(user.room).emit('roomData', { room: user.room, users: getUsersInRoom(user.room)});
     }
   })
 });
